@@ -7,6 +7,12 @@ import pandas as pd # Usual convention for importing pandas
 from sklearn.model_selection import train_test_split # Split the data
 from sklearn.feature_extraction.text import CountVectorizer # bag of words vectors
 from sklearn.linear_model import LogisticRegression # logistic regression tool
+from keras.models import Sequential # Keras basic sequential model architecture
+from keras import layers # Various layers, like Dense and ReLU
+from keras.backend import clear_session # To clear the model between runs for tutorial
+from keras.preprocessing.text import Tokenizer # Tokenizer similar to nltk
+import matplotlib.pyplot as plt # Convention for importing matplotlib
+plt.style.use('ggplot')
 
 ## Create a dictionary of all three datafiles we will use
 filepath_dict = {
@@ -25,28 +31,71 @@ for source, filepath in filepath_dict.items():
 df = pd.concat(df_list)
 #print(df.iloc[0]) # Test that the inputs are working
 
-## Define the baseline model using a bag of words approach and 
-## logistic regression. 
-## Try it out on just the yelp sentences first. Then modify the 
-## code to run the basic classifier on each text type.
-for source in df['source'].unique():
-    df_source = df[df['source'] == source]
+## Try to improve on the baseline model using a deep network in Keras
+df_source = df[df['source'] == 'yelp']
 
-    sentences = df_source['sentence'].values # numpy arrays which here are more convenient
-    y = df_source['label'].values
+sentences = df_source['sentence'].values # numpy arrays which here are more convenient
+y = df_source['label'].values
 
-    sentences_train, sentences_test, y_train, y_test = train_test_split(
-        sentences, y, test_size = 0.25, random_state = 1000
-    ) # Hold out 25% of data and labels for testing, set random state for repeat output in tutorial
+sentences_train, sentences_test, y_train, y_test = train_test_split(
+    sentences, y, test_size = 0.25, random_state = 1000
+) # Hold out 25% of data and labels for testing, set random state for repeat output in tutorial
 
-    vectorizer = CountVectorizer() # Instantiate a count vectorizer
-    vectorizer.fit(sentences_train) # Train it on the training sentences
+vectorizer = CountVectorizer() # Instantiate a count vectorizer
+vectorizer.fit(sentences_train) # Train it on the training sentences
 
-    X_train = vectorizer.transform(sentences_train) # Transform training sentences into features
-    X_test = vectorizer.transform(sentences_test) # Transform test sentences into features
+X_train = vectorizer.transform(sentences_train) # Transform training sentences into features
+X_test = vectorizer.transform(sentences_test) # Transform test sentences into features
 
-    classifier = LogisticRegression(solver = 'lbfgs') # Instantiate our base logistic regression
-    classifier.fit(X_train, y_train) # Train the classifier
-    score = classifier.score(X_test, y_test) # Score the classifier on the test set
+input_dim = X_train.shape[1] # Number of features
 
-    print(f"Accuracy for {source} data: {score:.4f}")
+clear_session()
+
+## Build the model
+model = Sequential()
+model.add(layers.Dense(10, input_dim = input_dim, activation = 'relu'))
+model.add(layers.Dense(1, activation = 'sigmoid'))
+
+## Compile the model
+model.compile(
+    loss = 'binary_crossentropy',
+    optimizer = 'adam',
+    metrics = ['accuracy']
+)
+
+model.summary()
+
+## Train the model
+history = model.fit(
+    X_train, y_train, epochs = 100, verbose = False, 
+    validation_data = (X_test, y_test), batch_size = 10
+)
+
+## Evaluate the model accuracy
+loss, accuracy = model.evaluate(X_train, y_train, verbose = False)
+print(f"Training accuracy: {accuracy:.4f}")
+loss, accuracy = model.evaluate(X_test, y_test, verbose = False)
+print(f"Test accuracy: {accuracy:.4f}")
+
+## Helper function to visualize the training
+def plot_history(history):
+    acc = history.history['accuracy']
+    val_acc = history.history['val_accuracy']
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+    x = range(1, len(acc) + 1)
+
+    plt.figure(figsize = (12, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(x, acc, 'b', label = 'Training Acc.')
+    plt.plot(x, val_acc, 'r', label = 'Validation Acc.')
+    plt.title("Training and validation accuracy")
+    plt.legend()
+    plt.subplot(1, 2, 2)
+    plt.plot(x, loss, 'b', label = 'Training Loss')
+    plt.plot(x, val_loss, 'r', label = 'Validation Loss')
+    plt.title("Training and validation loss")
+    plt.legend()
+    plt.show()
+
+#plot_history(history)
